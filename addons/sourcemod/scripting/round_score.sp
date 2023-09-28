@@ -10,7 +10,8 @@ public Plugin myinfo = {
 	name = "RoundScore",
 	author = "TouchMe",
 	description = "The plugin displays the results of the survivor team in chat",
-	version = "build_0001"
+	version = "build_0001",
+	url = "https://github.com/TouchMe-Inc/l4d2_round_score"
 };
 
 
