@@ -1,4 +1,7 @@
 
+#pragma semicolon               1
+#pragma newdecls                required
+
 #include <colors>
 
 #undef REQUIRE_PLUGIN
@@ -10,8 +13,7 @@ public Plugin myinfo = {
 	name = "RoundScore",
 	author = "TouchMe",
 	description = "The plugin displays the results of the survivor team in chat",
-	version = "build_0001",
-	url = "https://github.com/TouchMe-Inc/l4d2_round_score"
+	version = "build_0001"
 };
 
 
@@ -20,15 +22,15 @@ public Plugin myinfo = {
 #define TEAM_SURVIVOR           2
 #define TEAM_INFECTED           3
 
-#define STATS_KILL_CI 0
-#define STATS_KILL_SI 1
-#define STATS_DMG_SI 2
-#define STATS_DMG_FF 3
-#define STATS_MAX_SIZE 4
+#define STATS_KILL_CI           0
+#define STATS_KILL_SI           1
+#define STATS_DMG_SI            2
+#define STATS_DMG_FF            3
+#define STATS_MAX_SIZE          4
 
 
 int
-	g_iPlayerStats[MAXPLAYERS + 1][STATS_MAX_SIZE],
+	g_iClientStats[MAXPLAYERS + 1][STATS_MAX_SIZE],
 	g_iTotalStats[STATS_MAX_SIZE];
 
 bool g_bRoundIsLive;
@@ -65,6 +67,7 @@ public void OnPluginStart()
 	// Events.
 	HookEvent("player_left_start_area", Event_PlayerLeftStartArea, EventHookMode_PostNoCopy);
 	HookEvent("round_end", Event_RoundEnd, EventHookMode_PostNoCopy);
+	HookEvent("player_team", Event_PlayerTeam, EventHookMode_Post);
 	HookEvent("player_hurt", Event_PlayerHurt, EventHookMode_Post);
 	HookEvent("player_death", Event_PlayerDeath, EventHookMode_Post);
 	HookEvent("infected_death", Event_InfectedDeath, EventHookMode_Post);
@@ -75,16 +78,30 @@ public void OnPluginStart()
 }
 
 /**
+ * Sends new players to the observer team.
+ * Called before player change his team.
+ */
+Action Event_PlayerTeam(Event event, char[] sName, bool bDontBroadcast)
+{
+	int iClient = GetClientOfUserId(event.GetInt("userid"));
+
+	if (!IsValidClient(iClient)) {
+		return Plugin_Continue;
+	}
+
+	ClearClientScore(iClient);
+
+	return Plugin_Continue;
+}
+
+/**
  * Round start event.
  */
 Action Event_PlayerLeftStartArea(Event event, const char[] sName, bool bDontBroadcast)
 {
-	for (int iPlayer = 1; iPlayer <= MaxClients; iPlayer++)
+	for (int iClient = 1; iClient <= MaxClients; iClient ++)
 	{
-		for (int iStats = 0; iStats < STATS_MAX_SIZE; iStats ++)
-		{	
-			g_iPlayerStats[iPlayer][iStats] = 0;
-		}
+		ClearClientScore(iClient);
 	}
 
 	for (int iStats = 0; iStats < STATS_MAX_SIZE; iStats ++)
@@ -156,13 +173,13 @@ Action Event_PlayerHurt(Event event, char[] sEventName, bool bDontBroadcast)
 
 	if (IsClientSurvivor(iVictim))
 	{
-		g_iPlayerStats[iAttacker][STATS_DMG_FF] += iDamage;
+		g_iClientStats[iAttacker][STATS_DMG_FF] += iDamage;
 		g_iTotalStats[STATS_DMG_FF] += iDamage;
 	}
 
 	else
 	{
-		g_iPlayerStats[iAttacker][STATS_DMG_SI] += iDamage;
+		g_iClientStats[iAttacker][STATS_DMG_SI] += iDamage;
 		g_iTotalStats[STATS_DMG_SI] += iDamage;
 	}
 
@@ -186,7 +203,7 @@ Action Event_PlayerDeath(Event event, const char[] name, bool bDontBroadcast)
 		return Plugin_Continue;
 	}
 
-	g_iPlayerStats[iKiller][STATS_KILL_SI] ++;
+	g_iClientStats[iKiller][STATS_KILL_SI] ++;
 	g_iTotalStats[STATS_KILL_SI] ++;
 
 	return Plugin_Continue;
@@ -203,13 +220,13 @@ Action Event_InfectedDeath(Event event, char[] sEventName, bool bDontBroadcast)
 		return Plugin_Continue;
 	}
 
-	g_iPlayerStats[iKiller][STATS_KILL_CI] ++;
+	g_iClientStats[iKiller][STATS_KILL_CI] ++;
 	g_iTotalStats[STATS_KILL_CI] ++;
 
 	return Plugin_Continue;
 }
 
-Action Cmd_Score(iClient, int iArgs)
+Action Cmd_Score(int iClient, int iArgs)
 {
 	if (!IsValidClient(iClient)) {
 		return Plugin_Continue;
@@ -254,24 +271,33 @@ void PrintToChatScore(int iClient, const int[] iPlayers, int iTotalPlayers)
 		float fSIDamageProcent = 0.0;
 
 		if (g_iTotalStats[STATS_DMG_SI] > 0.0) {
-			fSIDamageProcent = 100.0 * float(g_iPlayerStats[iPlayer][STATS_DMG_SI])/float(g_iTotalStats[STATS_DMG_SI]);
+			fSIDamageProcent = 100.0 * float(g_iClientStats[iPlayer][STATS_DMG_SI])/float(g_iTotalStats[STATS_DMG_SI]);
 		}
 
 		CPrintToChat(iClient, "%s%T",
 			(iItem + 1) == iTotalPlayers ? sBracketEnd : sBracketMiddle,
 			"SCORE", iClient,
 			iPlayer,
-			g_iPlayerStats[iPlayer][STATS_KILL_CI],
-			g_iPlayerStats[iPlayer][STATS_KILL_SI],
-			g_iPlayerStats[iPlayer][STATS_DMG_SI],
+			g_iClientStats[iPlayer][STATS_KILL_CI],
+			g_iClientStats[iPlayer][STATS_KILL_SI],
+			g_iClientStats[iPlayer][STATS_DMG_SI],
 			fSIDamageProcent,
-			g_iPlayerStats[iPlayer][STATS_DMG_FF]
+			g_iClientStats[iPlayer][STATS_DMG_FF]
 		);
 	}
 }
 
+void ClearClientScore(int iClient)
+{
+	for (int iStats = 0; iStats < STATS_MAX_SIZE; iStats ++)
+	{
+		g_iTotalStats[iStats] -= g_iClientStats[iClient][iStats];
+		g_iClientStats[iClient][iStats] = 0;
+	}
+}
+
 bool IsValidClient(int iClient) {
-	return (iClient > 0 && iClient <= MaxClients)
+	return (iClient > 0 && iClient <= MaxClients);
 }
 
 /**
