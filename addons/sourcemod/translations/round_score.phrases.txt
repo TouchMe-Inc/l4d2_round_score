@@ -23,6 +23,6 @@
 	"SCORE"
 	{
 		"#format"		"{1:N},{2:d},{3:d},{4:d},{5:.0f},{6:d}"
-		"en"			"{blue}{1}{default} Common: {2} {olive}·{default} {default}Special: {3} ({4} dmg [{5}%%]) {olive}·{default} FF: {6}"
+		"en"			"{blue}{1}{default} Common: {2} {olive}·{default} Special: {3} ({4} dmg [{5}%%]) {olive}·{default} FF: {6}"
 	}
 }
