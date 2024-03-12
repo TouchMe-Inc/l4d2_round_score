@@ -2,19 +2,17 @@
 #pragma semicolon               1
 #pragma newdecls                required
 
+#include <sourcemod>
 #include <sdkhooks>
 #include <colors>
-
-#undef REQUIRE_PLUGIN
-#include <readyup>
-#define REQUIRE_PLUGIN
 
 
 public Plugin myinfo = {
 	name = "RoundScore",
 	author = "TouchMe",
 	description = "The plugin displays the results of the survivor team in chat",
-	version = "build_0002"
+	version = "build_0003",
+	url = "https://github.com/TouchMe-Inc/l4d2_round_score"
 };
 
 
@@ -52,9 +50,7 @@ bool
  */
 public APLRes AskPluginLoad2(Handle myself, bool bLate, char[] sErr, int iErrLen)
 {
-	EngineVersion engine = GetEngineVersion();
-
-	if (engine != Engine_Left4Dead2)
+	if (GetEngineVersion() != Engine_Left4Dead2)
 	{
 		strcopy(sErr, iErrLen, "Plugin only supports Left 4 Dead 2.");
 		return APLRes_SilentFailure;
@@ -66,8 +62,7 @@ public APLRes AskPluginLoad2(Handle myself, bool bLate, char[] sErr, int iErrLen
 /**
   * Called when the map starts loading.
   */
-public void OnMapStart()
-{
+public void OnMapStart() {
 	g_bRoundIsLive = false;
 }
 
@@ -76,10 +71,10 @@ public void OnPluginStart()
 	LoadTranslations(TRANSLATIONS);
 
 	// Events.
+	HookEvent("player_disconnect", Event_PlayerDisconnect, EventHookMode_Pre);
 	HookEvent("player_left_start_area", Event_PlayerLeftStartArea, EventHookMode_PostNoCopy);
 	HookEvent("round_end", Event_RoundEnd, EventHookMode_PostNoCopy);
 	HookEvent("player_spawn", Event_PlayerSpawn, EventHookMode_Post);
-	HookEvent("player_team", Event_PlayerTeam, EventHookMode_Post);
 	HookEvent("player_hurt", Event_PlayerHurt, EventHookMode_Post);
 	HookEvent("player_death", Event_PlayerDeath, EventHookMode_Post);
 	HookEvent("infected_death", Event_InfectedDeath, EventHookMode_Post);
@@ -90,26 +85,23 @@ public void OnPluginStart()
 }
 
 /**
- * Sends new players to the observer team.
- * Called before player change his team.
+ * Called before player disconnected.
  */
-Action Event_PlayerTeam(Event event, char[] sName, bool bDontBroadcast)
+void Event_PlayerDisconnect(Event event, char[] sName, bool bDontBroadcast)
 {
-	int iClient = GetClientOfUserId(event.GetInt("userid"));
+	int iClient = GetClientOfUserId(GetEventInt(event, "userid"));
 
-	if (!IsValidClient(iClient)) {
-		return Plugin_Continue;
+	if (!iClient || (IsClientConnected(iClient) && !IsClientInGame(iClient))) {
+		return;
 	}
 
 	ClearClientScore(iClient);
-
-	return Plugin_Continue;
 }
 
 /**
  * Round start event.
  */
-Action Event_PlayerLeftStartArea(Event event, const char[] sName, bool bDontBroadcast)
+void Event_PlayerLeftStartArea(Event event, const char[] sName, bool bDontBroadcast)
 {
 	for (int iClient = 1; iClient <= MaxClients; iClient ++)
 	{
@@ -122,14 +114,12 @@ Action Event_PlayerLeftStartArea(Event event, const char[] sName, bool bDontBroa
 	}
 
 	g_bRoundIsLive = true;
-
-	return Plugin_Continue;
 }
 
 /**
  * Round end event.
  */
-Action Event_RoundEnd(Event event, const char[] sName, bool bDontBroadcast)
+void Event_RoundEnd(Event event, const char[] sName, bool bDontBroadcast)
 {
 	if (g_bRoundIsLive)
 	{
@@ -138,14 +128,15 @@ Action Event_RoundEnd(Event event, const char[] sName, bool bDontBroadcast)
 
 		for (int iPlayer = 1; iPlayer <= MaxClients; iPlayer ++)
 		{
-			if (!IsClientInGame(iPlayer) || !IsClientSurvivor(iPlayer)) {
+			if (!IsClientInGame(iPlayer)
+			|| (!g_iClientStats[iPlayer][STATS_DMG_SI] && !g_iClientStats[iPlayer][STATS_KILL_CI])) {
 				continue;
 			}
 
 			iPlayers[iTotalPlayers++] = iPlayer;
 		}
 
-		SortCustom1D(iPlayers, iTotalPlayers, Custom1DSort);
+		SortCustom1D(iPlayers, iTotalPlayers, SortDamage);
 
 		for (int iClient = 1; iClient <= MaxClients; iClient ++)
 		{
@@ -158,13 +149,11 @@ Action Event_RoundEnd(Event event, const char[] sName, bool bDontBroadcast)
 
 		g_bRoundIsLive = false;
 	}
-
-	return Plugin_Continue;
 }
 
 Action Event_PlayerSpawn(Event event, char[] sEventName, bool bDontBroadcast)
 {
-	int iClient = GetClientOfUserId(event.GetInt("userid"));
+	int iClient = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	if (!IsValidClient(iClient) || !IsClientInfected(iClient)) {
 		return Plugin_Continue;
@@ -179,66 +168,64 @@ Action Event_PlayerSpawn(Event event, char[] sEventName, bool bDontBroadcast)
 /**
  * Registers existing/caused damage.
  */
-Action Event_PlayerHurt(Event event, char[] sEventName, bool bDontBroadcast)
+void Event_PlayerHurt(Event event, char[] sEventName, bool bDontBroadcast)
 {
-	int iDamage = event.GetInt("dmg_health");
-
-	int iAttacker = GetClientOfUserId(event.GetInt("attacker"));
+	int iAttacker = GetClientOfUserId(GetEventInt(event, "attacker"));
 
 	if (!IsValidClient(iAttacker) || !IsClientSurvivor(iAttacker)) {
-		return Plugin_Continue;
+		return;
 	}
 
-	int iVictim = GetClientOfUserId(event.GetInt("userid"));
+	int iVictim = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	if (!IsValidClient(iVictim)) {
-		return Plugin_Continue;
+		return;
 	}
+
+	int iDamage = GetEventInt(event, "dmg_health");
 
 	if (IsClientSurvivor(iVictim))
 	{
 		g_iClientStats[iAttacker][STATS_DMG_FF] += iDamage;
 		g_iTotalStats[STATS_DMG_FF] += iDamage;
-		return Plugin_Continue;
+		return;
 	}
 
-	if (GetClientZombieClass(iVictim) == ZC_TANK) {
-		return Plugin_Continue;
+	if (GetClientClass(iVictim) == ZC_TANK) {
+		return;
 	}
 
-	int iRemainingHealth = event.GetInt("health");
+	int iRemainingHealth = GetEventInt(event, "health");
 
 	if (iRemainingHealth <= 0) {
-		return Plugin_Continue;
+		return;
 	}
 
 	g_iLastHealth[iVictim] = iRemainingHealth;
 
 	g_iClientStats[iAttacker][STATS_DMG_SI] += iDamage;
 	g_iTotalStats[STATS_DMG_SI] += iDamage;
-
-	return Plugin_Continue;
 }
 
 /**
  * Registers murder.
  */
-Action Event_PlayerDeath(Event event, const char[] name, bool bDontBroadcast)
+void Event_PlayerDeath(Event event, const char[] name, bool bDontBroadcast)
 {
-	int iVictim = GetClientOfUserId(event.GetInt("userid"));
+	int iVictim = GetClientOfUserId(GetEventInt(event, "userid"));
 
 	if (!IsValidClient(iVictim) || !IsClientInfected(iVictim)) {
-		return Plugin_Continue;
+		return;
 	}
 
-	int iKiller = GetClientOfUserId(event.GetInt("attacker"));
+	int iKiller = GetClientOfUserId(GetEventInt(event, "attacker"));
 
 	if (!IsValidClient(iKiller) || !IsClientSurvivor(iKiller)) {
-		return Plugin_Continue;
+		return;
 	}
 
-	if (GetClientZombieClass(iVictim) == ZC_TANK) {
-		return Plugin_Continue;
+	if (GetClientClass(iVictim) == ZC_TANK) {
+		return;
 	}
 
 	if (g_iLastHealth[iVictim])
@@ -250,34 +237,32 @@ Action Event_PlayerDeath(Event event, const char[] name, bool bDontBroadcast)
 
 	g_iClientStats[iKiller][STATS_KILL_SI] ++;
 	g_iTotalStats[STATS_KILL_SI] ++;
-
-	return Plugin_Continue;
 }
 
 /**
  * Surivivor Killed Common Infected.
  */
-Action Event_InfectedDeath(Event event, char[] sEventName, bool bDontBroadcast)
+void Event_InfectedDeath(Event event, char[] sEventName, bool bDontBroadcast)
 {
-	int iKiller = GetClientOfUserId(event.GetInt("attacker"));
+	int iKiller = GetClientOfUserId(GetEventInt(event, "attacker"));
 
-	if (!IsValidClient(iKiller)) {
-		return Plugin_Continue;
+	if (!IsValidClient(iKiller) || !IsClientSurvivor(iKiller)) {
+		return;
 	}
 
 	g_iClientStats[iKiller][STATS_KILL_CI] ++;
 	g_iTotalStats[STATS_KILL_CI] ++;
-
-	return Plugin_Continue;
 }
 
 Action Cmd_Score(int iClient, int iArgs)
 {
-	if (!IsValidClient(iClient)) {
+	if (!iClient) {
 		return Plugin_Continue;
 	}
 
-	if (!g_bRoundIsLive) {
+	if (!g_bRoundIsLive)
+	{
+		CPrintToChat(iClient, "%T%T", "TAG", iClient, "ROUND_NOT_LIVE", iClient);
 		return Plugin_Handled;
 	}
 
@@ -286,18 +271,21 @@ Action Cmd_Score(int iClient, int iArgs)
 
 	for (int iPlayer = 1; iPlayer <= MaxClients; iPlayer ++)
 	{
-		if (!IsClientInGame(iPlayer) || !IsClientSurvivor(iPlayer)) {
+		if (!IsClientInGame(iPlayer)
+		|| (!g_iClientStats[iPlayer][STATS_DMG_SI] && !g_iClientStats[iPlayer][STATS_KILL_CI])) {
 			continue;
 		}
 
 		iPlayers[iTotalPlayers++] = iPlayer;
 	}
 
-	if (!iTotalPlayers) {
+	if (!iTotalPlayers)
+	{
+		CPrintToChat(iClient, "%T%T", "TAG", iClient, "NO_SCORE", iClient);
 		return Plugin_Handled;
 	}
 
-	SortCustom1D(iPlayers, iTotalPlayers, Custom1DSort);
+	SortCustom1D(iPlayers, iTotalPlayers, SortDamage);
 
 	PrintToChatScore(iClient, iPlayers, iTotalPlayers);
 
@@ -318,7 +306,7 @@ void PrintToChatScore(int iClient, const int[] iPlayers, int iTotalPlayers)
 		float fSIDamageProcent = 0.0;
 
 		if (g_iTotalStats[STATS_DMG_SI] > 0.0) {
-			fSIDamageProcent = 100.0 * float(g_iClientStats[iPlayer][STATS_DMG_SI])/float(g_iTotalStats[STATS_DMG_SI]);
+			fSIDamageProcent = 100.0 * float(g_iClientStats[iPlayer][STATS_DMG_SI]) / float(g_iTotalStats[STATS_DMG_SI]);
 		}
 
 		CPrintToChat(iClient, "%s%T",
@@ -345,7 +333,7 @@ void ClearClientScore(int iClient)
 	}
 }
 
-int Custom1DSort(int elem1, int elem2, const int[] array, Handle hndl)
+int SortDamage(int elem1, int elem2, const int[] array, Handle hndl)
 {
 	int iDamage1 = g_iClientStats[elem1][STATS_DMG_SI];
 	int iDamage2 = g_iClientStats[elem2][STATS_DMG_SI];
@@ -371,13 +359,13 @@ bool IsClientInfected(int iClient) {
 }
 
 /**
- * Getting the player's current zombie class.
+ * Gets the client L4D1/L4D2 zombie class id.
  *
- * @param iClient       Client index
- *
- * @return              Returns the code of the zombie class
+ * @param client     Client index.
+ * @return L4D1      1=SMOKER, 2=BOOMER, 3=HUNTER, 4=WITCH, 5=TANK, 6=NOT INFECTED
+ * @return L4D2      1=SMOKER, 2=BOOMER, 3=HUNTER, 4=SPITTER, 5=JOCKEY, 6=CHARGER, 7=WITCH, 8=TANK, 9=NOT INFECTED
  */
-int GetClientZombieClass(int iClient) {
+int GetClientClass(int iClient) {
 	return GetEntProp(iClient, Prop_Send, "m_zombieClass");
 }
 
