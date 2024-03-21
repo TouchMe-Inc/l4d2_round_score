@@ -123,6 +123,8 @@ void Event_RoundEnd(Event event, const char[] sName, bool bDontBroadcast)
 {
 	if (g_bRoundIsLive)
 	{
+		g_bRoundIsLive = false;
+
 		int iTotalPlayers = 0;
 		int[] iPlayers = new int[MaxClients];
 
@@ -144,10 +146,14 @@ void Event_RoundEnd(Event event, const char[] sName, bool bDontBroadcast)
 				continue;
 			}
 
-			PrintToChatScore(iClient, iPlayers, iTotalPlayers);
-		}
+			if (!iTotalPlayers) {
+				CPrintToChat(iClient, "%T%T", "TAG", iClient, "NO_SCORE", iClient);
+			}
 
-		g_bRoundIsLive = false;
+			else {
+				PrintToChatScore(iClient, iPlayers, iTotalPlayers);
+			}
+		}
 	}
 }
 
@@ -294,11 +300,7 @@ Action Cmd_Score(int iClient, int iArgs)
 
 void PrintToChatScore(int iClient, const int[] iPlayers, int iTotalPlayers)
 {
-	char sBracketStart[16]; FormatEx(sBracketStart, sizeof(sBracketStart), "%T", "BRACKET_START", iClient);
-	char sBracketMiddle[16]; FormatEx(sBracketMiddle, sizeof(sBracketMiddle), "%T", "BRACKET_MIDDLE", iClient);
-	char sBracketEnd[16]; FormatEx(sBracketEnd, sizeof(sBracketEnd), "%T", "BRACKET_END", iClient);
-
-	CPrintToChat(iClient, "%s%T", sBracketStart, "TAG", iClient);
+	CPrintToChat(iClient, "%T%T", "BRACKET_START", iClient, "TAG", iClient);
 
 	for (int iItem = 0; iItem < iTotalPlayers; iItem ++)
 	{
@@ -310,7 +312,7 @@ void PrintToChatScore(int iClient, const int[] iPlayers, int iTotalPlayers)
 		}
 
 		CPrintToChat(iClient, "%s%T",
-			(iItem + 1) == iTotalPlayers ? sBracketEnd : sBracketMiddle,
+			(iItem + 1) == iTotalPlayers ? "BRACKET_END" : "BRACKET_MIDDLE", iClient,
 			"SCORE", iClient,
 			iPlayer,
 			g_iClientStats[iPlayer][STATS_KILL_CI],
