@@ -311,7 +311,7 @@ void PrintToChatScore(int iClient, const int[] iPlayers, int iTotalPlayers)
 			fSIDamageProcent = 100.0 * float(g_iClientStats[iPlayer][STATS_DMG_SI]) / float(g_iTotalStats[STATS_DMG_SI]);
 		}
 
-		CPrintToChat(iClient, "%s%T",
+		CPrintToChat(iClient, "%T%T",
 			(iItem + 1) == iTotalPlayers ? "BRACKET_END" : "BRACKET_MIDDLE", iClient,
 			"SCORE", iClient,
 			iPlayer,
