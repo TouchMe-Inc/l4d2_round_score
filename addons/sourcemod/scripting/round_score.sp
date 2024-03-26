@@ -302,6 +302,8 @@ void PrintToChatScore(int iClient, const int[] iPlayers, int iTotalPlayers)
 {
 	CPrintToChat(iClient, "%T%T", "BRACKET_START", iClient, "TAG", iClient);
 
+	char sName[MAX_NAME_LENGTH];
+
 	for (int iItem = 0; iItem < iTotalPlayers; iItem ++)
 	{
 		int iPlayer = iPlayers[iItem];
@@ -311,10 +313,12 @@ void PrintToChatScore(int iClient, const int[] iPlayers, int iTotalPlayers)
 			fSIDamageProcent = 100.0 * float(g_iClientStats[iPlayer][STATS_DMG_SI]) / float(g_iTotalStats[STATS_DMG_SI]);
 		}
 
+		GetClientNameFixed(iPlayer, sName, sizeof(sName), 18);
+
 		CPrintToChat(iClient, "%T%T",
 			(iItem + 1) == iTotalPlayers ? "BRACKET_END" : "BRACKET_MIDDLE", iClient,
 			"SCORE", iClient,
-			iPlayer,
+			sName,
 			g_iClientStats[iPlayer][STATS_KILL_CI],
 			g_iClientStats[iPlayer][STATS_KILL_SI],
 			g_iClientStats[iPlayer][STATS_DMG_SI],
@@ -351,6 +355,20 @@ int SortDamage(int elem1, int elem2, const int[] array, Handle hndl)
 
 bool IsValidClient(int iClient) {
 	return (iClient > 0 && iClient <= MaxClients);
+}
+
+/**
+ *
+ */
+void GetClientNameFixed(int iClient, char[] name, int length, int iMaxSize)
+{
+	GetClientName(iClient, name, length);
+
+	if (strlen(name) > iMaxSize)
+	{
+		name[iMaxSize - 3] = name[iMaxSize - 2] = name[iMaxSize - 1] = '.';
+		name[iMaxSize] = '\0';
+	}
 }
 
 /**

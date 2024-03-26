@@ -22,7 +22,7 @@
 
 	"SCORE"
 	{
-		"#format"		"{1:N},{2:d},{3:d},{4:d},{5:.0f},{6:d}"
+		"#format"		"{1:s},{2:d},{3:d},{4:d},{5:.0f},{6:d}"
 		"en"			"{blue}{1}{default} killed CI: {2} {olive}·{default} {default}SI: {3} ({4} dmg [{5}%%]) {olive}·{default} FF: {6}"
 	}
 
