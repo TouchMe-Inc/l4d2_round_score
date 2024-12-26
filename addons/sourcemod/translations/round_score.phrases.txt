@@ -22,17 +22,12 @@
 
 	"SCORE"
 	{
-		"#format"		"{1:s},{2:d},{3:d},{4:d},{5:.0f},{6:d}"
-		"en"			"{blue}{1}{default} killed CI: {2} {olive}·{default} {default}SI: {3} ({4} dmg [{5}%%]) {olive}·{default} FF: {6}"
+		"#format"		"{1:s},{2:d},{3:s},{4:d},{5:s},{6:d},{7:s},{8:s}{9:d},{10:s},{11:d},{12:s}"
+		"en"			"SI: {1}{olive}{2}{default} ({3}{4} [{5}{6}{7}%%]) {green}|{default} CI: {8}{olive}{9} {green}|{default} FF: {10}{olive}{11} {green}| {blue}{12}"
 	}
 
 	"ROUND_NOT_LIVE"
 	{
 		"en"			"The round hasn't started yet"
-	}
-
-	"NO_SCORE"
-	{
-		"en"			"No results to display"
 	}
 }
