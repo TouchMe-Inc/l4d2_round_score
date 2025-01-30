@@ -8,11 +8,11 @@
 
 
 public Plugin myinfo = {
-    name = "RoundScore",
-    author = "TouchMe",
+    name        = "RoundScore",
+    author      = "TouchMe",
     description = "The plugin displays the results of the survivor team in chat",
-    version = "build_0004",
-    url = "https://github.com/TouchMe-Inc/l4d2_round_score"
+    version     = "build_0005",
+    url         = "https://github.com/TouchMe-Inc/l4d2_round_score"
 };
 
 
@@ -26,10 +26,6 @@ public Plugin myinfo = {
  */
 #define SI_CLASS_TANK           8
 
-#define SHORT_NAME_LENGTH      18
-
-#define TRANSLATIONS            "round_score.phrases"
-
 /*
  * Team.
  */
@@ -41,6 +37,11 @@ public Plugin myinfo = {
  */
 #define SI_CLASS_TANK           8
 
+#define SHORT_NAME_LENGTH      18
+
+#define TRANSLATIONS            "round_score.phrases"
+
+#define CHARACTER_USERID(%0)   (-%0 - 1)
 
 /**
  * Entity-Relationship: UserVector(Userid, ...)
@@ -127,6 +128,18 @@ methodmap UserVector < ArrayList {
     }
 }
 
+enum
+{
+    BILL = 0,
+    ZOEY = 1,
+    FRANCIS = 2,
+    LOUIS = 3,
+    NICK = 4,
+    ROCHELLE = 5,
+    COACH = 6,
+    ELLIS = 7,
+};
+
 enum {
     eKillSpecial,
     eKillCommon,
@@ -192,6 +205,10 @@ public void OnPluginStart()
 
 public void OnClientDisconnect(int iClient)
 {
+    if (IsFakeClient(iClient)) {
+        return;
+    }
+
     int iUserId = GetClientUserId(iClient);
 
     char szKey[16];
@@ -262,6 +279,10 @@ void Event_PlayerHurt(Event event, char[] sEventName, bool bDontBroadcast)
         return;
     }
 
+    if (IsFakeClient(iAttacker)) {
+        iAttackerId = CHARACTER_USERID(GetSurvivorCharacter(iAttacker));
+    }
+
     int iDamage = GetEventInt(event, "dmg_health");
 
     if (IsClientSurvivor(iVictim))
@@ -299,6 +320,10 @@ void Event_PlayerDeath(Event event, const char[] name, bool bDontBroadcast)
         return;
     }
 
+    if (IsFakeClient(iAttacker)) {
+        iAttackerId = CHARACTER_USERID(GetSurvivorCharacter(iAttacker));
+    }
+
     if (g_iLastHealth[iVictim] > 0)
     {
         g_aRoundScore.UserAdd(iAttackerId, eSpecialDamage, g_iLastHealth[iVictim], true);
@@ -318,6 +343,10 @@ void Event_InfectedDeath(Event event, char[] sEventName, bool bDontBroadcast)
 
     if (iAttacker <= 0 || !IsClientInGame(iAttacker) || !IsClientSurvivor(iAttacker)) {
         return;
+    }
+
+    if (IsFakeClient(iAttacker)) {
+        iAttackerId = CHARACTER_USERID(GetSurvivorCharacter(iAttacker));
     }
 
     g_aRoundScore.UserAdd(iAttackerId, eKillCommon, 1, true);
@@ -401,7 +430,7 @@ void PrintToChatScore(int iClient)
 
         NumberSpace(szKillSpecialSpace, sizeof(szKillSpecialSpace), iKillSpecial, iKillSpecialMaxDigits);
         NumberSpace(szSpecialDamageSpace, sizeof(szSpecialDamageSpace), iSpecialDamage, iSpecialDamageMaxDigits);
-        ProcentSpace(szSpecialDamagePctSpace, sizeof(szSpecialDamagePctSpace), iSpecialDamagePct);
+        NumberSpace(szSpecialDamagePctSpace, sizeof(szSpecialDamagePctSpace), iSpecialDamagePct, .iSpaceCount = 1);
         NumberSpace(szKillCommonSpace, sizeof(szKillCommonSpace), iKillCommon, iKillCommonMaxDigits);
         NumberSpace(szFriendlyFireSpace, sizeof(szFriendlyFireSpace), iFriendlyFire, iFriendlyFireMaxDigits);
 
@@ -416,7 +445,7 @@ void PrintToChatScore(int iClient)
     }
 }
 
-void NumberSpace(char[] szBuffer, int iLength, int iNumber, int iMaxDigits = 3)
+void NumberSpace(char[] szBuffer, int iLength, int iNumber, int iMaxDigits = 3, int iSpaceCount = 2)
 {
     int iDigits = GetNumberOfDigits(iNumber);
 
@@ -426,7 +455,7 @@ void NumberSpace(char[] szBuffer, int iLength, int iNumber, int iMaxDigits = 3)
         iSpaces = 0;
     }
 
-    iSpaces *= 2;
+    iSpaces *= iSpaceCount;
 
     if (iSpaces > iLength)
     {
@@ -441,16 +470,18 @@ void NumberSpace(char[] szBuffer, int iLength, int iNumber, int iMaxDigits = 3)
     szBuffer[iSpaces] = '\0';
 }
 
-void ProcentSpace(char[] szBuffer, int iLength, int iProcent)
-{
-    FormatEx(szBuffer, iLength, "%s",
-        iProcent < 10 ? "  " : iProcent < 100 ? " " : "");
-}
-
 bool GetClientNameFromUserId(int iUserId, char[] szClientName, int iMaxLen)
 {
-    if (iUserId == WORLD_INDEX) {
+    if (iUserId == WORLD_INDEX)
+    {
         FormatEx(szClientName, iMaxLen, "World");
+        return true;
+    }
+
+    if (iUserId < 0)
+    {
+        int iCharacterIndex = CHARACTER_USERID(iUserId);
+        GetSurvivorCharacterName(iCharacterIndex, szClientName, iMaxLen);
         return true;
     }
 
@@ -515,8 +546,36 @@ bool GetClientNameFixed(int iClient, char[] szClientName, int iLength, int iMaxS
     return true;
 }
 
+int GetSurvivorCharacter(int iClient) {
+    return GetEntProp(iClient, Prop_Send, "m_Gender") - 3;
+}
+
+void GetSurvivorCharacterName(int iCharacter, char[] szCharacterName, int iLength)
+{
+    switch (iCharacter)
+    {
+        case BILL: strcopy(szCharacterName, iLength, "Bill");
+        case FRANCIS: strcopy(szCharacterName, iLength, "Francis");
+        case LOUIS: strcopy(szCharacterName, iLength, "Louis");
+        case ZOEY: strcopy(szCharacterName, iLength, "Zoey");
+        case COACH: strcopy(szCharacterName, iLength, "Coach");
+        case ELLIS: strcopy(szCharacterName, iLength, "Ellis");
+        case NICK: strcopy(szCharacterName, iLength, "Nick");
+        case ROCHELLE: strcopy(szCharacterName, iLength, "Rochelle");
+
+        default: strcopy(szCharacterName, iLength, "Unknown");
+    }
+}
+
 /**
- * Infected team player?
+ * Returns whether the player is survivor.
+ */
+bool IsClientSurvivor(int iClient) {
+    return (GetClientTeam(iClient) == TEAM_SURVIVOR);
+}
+
+/**
+ * Returns whether the player is infected.
  */
 bool IsClientInfected(int iClient) {
     return (GetClientTeam(iClient) == TEAM_INFECTED);
@@ -531,13 +590,6 @@ bool IsClientInfected(int iClient) {
  */
 int GetInfectedClass(int iClient) {
     return GetEntProp(iClient, Prop_Send, "m_zombieClass");
-}
-
-/**
- * Survivor team player?
- */
-bool IsClientSurvivor(int iClient) {
-    return (GetClientTeam(iClient) == TEAM_SURVIVOR);
 }
 
 /**
